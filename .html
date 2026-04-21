@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>❖ Symbol Engine | Core</title>
+    <style>
+        :root {
+            --primary: #fff;
+            --bg: #000;
+            --surface: #111;
+            --border: rgba(255, 255, 255, 0.2);
+            --glow: 0 0 10px rgba(255, 255, 255, 0.1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--primary);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -1;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1000px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid var(--border);
+            padding: 40px;
+            box-shadow: var(--glow);
+            border-radius: 4px;
+            position: relative;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            letter-spacing: 5px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        button {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--primary);
+            padding: 15px;
+            cursor: pointer;
+            font-family: inherit;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            flex: 1;
+            transition: 0.2s;
+        }
+
+        button:hover, button.active {
+            background: var(--primary);
+            color: var(--bg);
+            border-color: var(--primary);
+        }
+
+        .interface {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+        }
+
+        @media (min-width: 768px) {
+            .interface { grid-template-columns: 1fr 1fr; }
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            opacity: 0.6;
+            letter-spacing: 1px;
+        }
+
+        textarea {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--primary);
+            padding: 20px;
+            height: 350px;
+            width: 100%;
+            resize: none;
+            outline: none;
+            font-size: 1.1rem;
+            line-height: 1.5;
+        }
+
+        textarea:focus { border-color: var(--primary); }
+
+        .output-area {
+            background: #050505;
+            border: 1px dashed var(--border);
+            padding: 20px;
+            height: 350px;
+            overflow-y: auto;
+            word-break: break-all;
+            white-space: pre-wrap;
+            font-size: 1.2rem;
+            line-height: 1.6;
+        }
+
+        .actions {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            background: #fff;
+            color: #000;
+            padding: 10px 20px;
+            font-size: 0.8rem;
+            display: none;
+            z-index: 100;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="container">
+        <header><h1>❖</h1></header>
+
+        <div class="mode-selector">
+            <button id="btn-encode" class="active">Encode</button>
+            <button id="btn-decode">Decode</button>
+        </div>
+
+        <div class="interface">
+            <div>
+                <label id="lbl-input">Input Text</label>
+                <textarea id="input" placeholder="Enter text here..."></textarea>
+            </div>
+            <div>
+                <label id="lbl-output">Encoded Result</label>
+                <div id="output" class="output-area"></div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button id="btn-copy">Copy Output</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">COPIED TO CLIPBOARD</div>
+
+    <script>
+        const mapping = {
+            'a': '❖❖_❖', 'b': '❖-❖❖', 'c': '❖+❖❖', 'd': '❖*❖❖', 'e': '❖❖❖', 
+            'f': '❖|❖❖', 'g': '❖^❖❖', 'h': '❖_❖❖', 'i': '❖|❖', 'j': '❖^❖^', 
+            'k': '❖*❖*', 'l': '❖❖❖❖', 'm': '❖-❖-', 'n': '❖+❖+', 'o': '❖❖❖❖❖', 
+            'p': '❖_❖_', 'q': '❖|❖|', 'r': '❖-❖', 's': '❖+❖', 't': '❖*❖', 
+            'u': '❖^❖', 'v': '❖_❖', 'w': '❖❖-❖', 'x': '❖❖+❖', 'y': '❖❖*❖', 
+            'z': '❖❖^❖', '1': '❖1', '2': '❖2', '3': '❖3', '4': '❖4', 
+            '5': '❖5', '6': '❖6', '7': '❖7', '8': '❖8', '9': '❖9', 
+            '0': '❖0', '.': '❖.', '?': '❖?', '!': '❖!', ',': '❖,',
+            '🦞': '❖🦞❖', 
+            ' ': '   ' 
+        };
+
+        const reverseMapping = Object.fromEntries(
+            Object.entries(mapping).map(([k, v]) => [v, k])
+        );
+
+        const inputEl = document.getElementById('input');
+        const outputEl = document.getElementById('output');
+        const btnEncode = document.getElementById('btn-encode');
+        const btnDecode = document.getElementById('btn-decode');
+        const lblInput = document.getElementById('lbl-input');
+        const lblOutput = document.getElementById('lbl-output');
+
+        let mode = 'encode';
+
+        function process() {
+            const rawVal = inputEl.value;
+            if (!rawVal) {
+                outputEl.innerText = "";
+                return;
+            }
+            
+            if (mode === 'encode') {
+                const val = rawVal.toLowerCase();
+                outputEl.innerText = Array.from(val).map(c => mapping[c] || c).join(" ");
+            } else {
+                const words = rawVal.split("   ");
+                outputEl.innerText = words
+                    .map(word => {
+                        const trimmedWord = word.trim();
+                        if (!trimmedWord) return "";
+                        return trimmedWord.split(/\s+/)
+                            .map(sym => reverseMapping[sym] || "?")
+                            .join("");
+                    })
+                    .filter(w => w !== "")
+                    .join(" ");
+            }
+        }
+
+        inputEl.addEventListener('input', process);
+
+        btnEncode.onclick = () => {
+            if (mode === 'encode') return;
+            mode = 'encode';
+            btnEncode.classList.add('active');
+            btnDecode.classList.remove('active');
+            lblInput.innerText = "Input Text";
+            lblOutput.innerText = "Encoded Result";
+            inputEl.value = "";
+            outputEl.innerText = "";
+            inputEl.focus();
+        };
+
+        btnDecode.onclick = () => {
+            if (mode === 'decode') return;
+            mode = 'decode';
+            btnDecode.classList.add('active');
+            btnEncode.classList.remove('active');
+            lblInput.innerText = "Symbol Input";
+            lblOutput.innerText = "Decoded Result";
+            inputEl.value = "";
+            outputEl.innerText = "";
+            inputEl.focus();
+        };
+
+        document.getElementById('btn-copy').onclick = () => {
+            const text = outputEl.innerText;
+            if (!text) return;
+            const temp = document.createElement("textarea");
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand("copy");
+            document.body.removeChild(temp);
+            const t = document.getElementById('toast');
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 1500);
+        };
+
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let streams = [];
+
+        function initBg() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            streams = Array(Math.floor(canvas.width/20)).fill().map((_, i) => ({
+                x: i * 20,
+                y: Math.random() * -canvas.height,
+                speed: 1 + Math.random() * 2,
+                chars: ["❖", "0", "1", "🦞"]
+            }));
+        }
+
+        function draw() {
+            ctx.fillStyle = "rgba(0,0,0,0.1)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "rgba(255,255,255,0.08)";
+            ctx.font = "14px monospace";
+            streams.forEach(s => {
+                const char = s.chars[Math.floor(Math.random() * s.chars.length)];
+                ctx.fillText(char, s.x, s.y);
+                s.y += s.speed;
+                if (s.y > canvas.height) s.y = -20;
+            });
+            requestAnimationFrame(draw);
+        }
+
+        window.onresize = initBg;
+        initBg();
+        draw();
+    </script>
+</body>
+</html>
